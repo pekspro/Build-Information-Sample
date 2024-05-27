@@ -1,0 +1,78 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - '*'
+  pull_request:
+    branches:
+      - '*'
+  workflow_dispatch:
+
+
+env:
+  BUILD_INFO_FILE: ./Source/BuildInfoSample/BuildInformation-Build.cs
+
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    # - name: Install MAUI Workload
+    #   run: dotnet workload install maui --ignore-failed-sources
+
+    - name: Get build information
+      shell: pwsh
+      run: |
+        echo "CURRENT_TIME=$((Get-Date).ToUniversalTime().ToString("yyyyMMdd_HHmmss"))" >> $env:GITHUB_ENV
+        echo "CURRENT_TIME_UTC_STRING=$((Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"))" >> $env:GITHUB_ENV
+        echo "NET_VERSION_STRING=$(dotnet --version)" >> $env:GITHUB_ENV
+        echo "SHORT_SHA=$("${{ github.sha }}".SubString(0, 8))" >> $env:GITHUB_ENV
+        echo "WORKLOAD_ANDROID_VERSION_STRING=N/A" >> $env:GITHUB_ENV
+        echo "WORKLOAD_WINDOWS_VERSION_STRING=N/A" >> $env:GITHUB_ENV
+        echo "WORKLOAD_IOS_VERSION_STRING=N/A" >> $env:GITHUB_ENV
+        echo "WORKLOAD_MACCATALYST_VERSION_STRING=N/A" >> $env:GITHUB_ENV
+
+    # If you are using MAUI, this is how you get information about the workloads.
+    # - name: Get build information for MAUI workload
+    #   shell: pwsh
+    #   run: |
+    #     echo "WORKLOAD_ANDROID_VERSION_STRING=$((dotnet workload list | Select-String maui)[0].ToString().Split(" ",[System.StringSplitOptions]::RemoveEmptyEntries)[1])" >> $env:GITHUB_ENV
+    #     echo "WORKLOAD_WINDOWS_VERSION_STRING=$((dotnet workload list | Select-String maui)[0].ToString().Split(" ",[System.StringSplitOptions]::RemoveEmptyEntries)[1])" >> $env:GITHUB_ENV
+    #     echo "WORKLOAD_IOS_VERSION_STRING=$((dotnet workload list | Select-String maui)[0].ToString().Split(" ",[System.StringSplitOptions]::RemoveEmptyEntries)[1])" >> $env:GITHUB_ENV
+    #     echo "WORKLOAD_MACCATALYST_VERSION_STRING=$((dotnet workload list | Select-String maui)[0].ToString().Split(" ",[System.StringSplitOptions]::RemoveEmptyEntries)[1])" >> $env:GITHUB_ENV
+
+    - name: Create build time file
+      shell: pwsh
+      run: |
+        echo "namespace BuildInfoSample;" > $env:BUILD_INFO_FILE
+        echo "public static partial class BuildInformation" >> $env:BUILD_INFO_FILE
+        echo "{" >> $env:BUILD_INFO_FILE
+        echo "    static partial void Initialize()" >> $env:BUILD_INFO_FILE
+        echo "    {" >> $env:BUILD_INFO_FILE
+        echo "        Branch = ""${{ github.ref_name }}"";" >> $env:BUILD_INFO_FILE
+        echo "        BuildTimeString = ""${{ env.CURRENT_TIME_UTC_STRING }}"";" >> $env:BUILD_INFO_FILE
+        echo "        CommitId = ""${{ github.sha }}"";" >> $env:BUILD_INFO_FILE
+        echo "        DotNetVersionString = ""${{ env.NET_VERSION_STRING }}"";" >> $env:BUILD_INFO_FILE
+        echo "        MauiWorkloadAndroidVersionString = ""${{ env.WORKLOAD_ANDROID_VERSION_STRING }}"";" >> $env:BUILD_INFO_FILE
+        echo "        MauiWorkloadWindowsVersionString = ""${{ env.WORKLOAD_WINDOWS_VERSION_STRING }}"";" >> $env:BUILD_INFO_FILE
+        echo "        MauiWorkloadIosVersionString = ""${{ env.WORKLOAD_IOS_VERSION_STRING }}"";" >> $env:BUILD_INFO_FILE
+        echo "        MauiWorkloadMacCatalystVersionString = ""${{ env.WORKLOAD_MACCATALYST_VERSION_STRING }}"";" >> $env:BUILD_INFO_FILE
+        echo "    }" >> $env:BUILD_INFO_FILE
+        echo "}" >> $env:BUILD_INFO_FILE
+        
+    - name: Upload source
+      uses: actions/upload-artifact@v4.3.3
+      with:
+        name: source-${{ env.CURRENT_TIME }}-${{ env.SHORT_SHA }}
+        retention-days: 1
+        path: |
+          ./**/*.*
+          !./.git
+
+    - name: Run the application
+      run: |
+        dotnet run --project ./Source/BuildInfoSample/BuildInfoSample.csproj
